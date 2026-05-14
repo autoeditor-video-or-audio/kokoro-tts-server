@@ -1,3 +1,10 @@
+## [0.3.1](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.3.0...v0.3.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* **docker:** use uv pip / uv run instead of bare .venv/bin/pip ([961d82d](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/961d82d50be33efd282f33c12e3d92ae25de33a3))
+
 # [0.3.0](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.2.4...v0.3.0) (2026-05-14)
 
 
