@@ -26,16 +26,20 @@ The fork SHALL serve every OpenAI-compatible route the upstream
   HTTP 200 — the fork enables the upstream permission gate by default
   so the route no longer 403s
 
-#### Scenario: Persisted blend via fork-only save route
+#### Scenario: Persisted weighted blend via fork-only save route
 - **WHEN** the client posts
   `POST /v1/voices/save-combined` with body
-  `{"voices": [...], "name": "my_blend", "overwrite": false}`
-- **THEN** the server MUST blend the base voices via the upstream
-  `TTSService.combine_voices` path
+  `{"voices": ["pf_dora(0.7)", "pm_alex(0.3)"], "name": "my_blend", "overwrite": false}`
+- **THEN** the server MUST parse each entry as `<name>` or
+  `<name>(<weight>)` (bare names default to weight 1.0), normalise
+  the weights to sum 1.0, and compute the weighted-sum tensor of
+  the loaded voicepacks
 - **AND** persist the resulting tensor as `<voices_dir>/<name>.pt`
 - **AND** flush the voice-manager cache so a follow-up
   `GET /v1/audio/voices` lists the new voicepack
 - **AND** return `{"name": "<name>", "path": "<absolute>", "base_voices": [...]}`
+- **AND** reject `weight_sum == 0` with HTTP 400 and unknown base
+  voices with HTTP 400
 
 ### Requirement: Allow-Local-Voice-Saving Default Enabled
 The fork SHALL flip the default of `Settings.allow_local_voice_saving`

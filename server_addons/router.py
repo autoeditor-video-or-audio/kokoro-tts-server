@@ -18,10 +18,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/voices", tags=["voicepacks"])
 
 _VALID_NAME = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+_WEIGHT_RE = re.compile(r"^([A-Za-z0-9_]+)\s*(?:\(\s*(-?\d+(?:\.\d+)?)\s*\))?$")
 
 
 class SaveCombinedRequest(BaseModel):
-    voices: List[str] = Field(..., min_length=1, description="Base voicepack names to blend")
+    voices: List[str] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Base voicepacks to blend. Each entry is either a bare voice "
+            "name (`pf_dora`) or a weighted form (`pf_dora(0.7)`); unweighted "
+            "entries default to weight 1.0. Weights are normalised to sum 1.0 "
+            "before tensor averaging."
+        ),
+    )
     name: str = Field(..., description="Filename (without .pt) to persist in voices_dir")
     overwrite: bool = Field(False, description="Allow overwriting an existing voicepack")
 
@@ -72,26 +82,48 @@ async def save_combined_voice(req: SaveCombinedRequest) -> dict:
             detail=f"voicepack {req.name!r} already exists; pass overwrite=true to replace",
         )
 
+    parts: list[tuple[str, float]] = []
+    for raw in req.voices:
+        m = _WEIGHT_RE.match(raw.strip())
+        if not m:
+            raise HTTPException(
+                status_code=400,
+                detail=f"voice entry {raw!r} must match '<name>' or '<name>(<weight>)'",
+            )
+        bare = m.group(1)
+        weight = float(m.group(2)) if m.group(2) is not None else 1.0
+        parts.append((bare, weight))
+
     try:
-        from api.src.services.tts_service import TTSService
+        from api.src.inference.voice_manager import get_manager
 
-        tts_service = await TTSService.create()
-        available = set(await tts_service.list_voices())
+        manager = await get_manager()
+        available = set(await manager.list_voices())
     except Exception as exc:
-        logger.exception("upstream tts service init failed")
-        raise HTTPException(status_code=500, detail=f"tts service init: {exc}")
+        logger.exception("voice manager init failed")
+        raise HTTPException(status_code=500, detail=f"voice manager init: {exc}")
 
-    missing = [v for v in req.voices if v.split("(")[0].strip() not in available]
+    missing = [name for name, _ in parts if name not in available]
     if missing:
         raise HTTPException(
             status_code=400,
             detail=f"base voices not found: {missing}",
         )
 
+    weight_sum = sum(w for _, w in parts)
+    if weight_sum == 0:
+        raise HTTPException(status_code=400, detail="weights sum to zero")
+
     try:
-        combined = await tts_service.combine_voices(voices=req.voices)
+        weighted = None
+        for bare, weight in parts:
+            voice = await manager.load_voice(bare)
+            norm = weight / weight_sum
+            term = voice * norm
+            weighted = term if weighted is None else weighted + term
+        combined = weighted
     except Exception as exc:
-        logger.exception("combine_voices failed for %s", req.voices)
+        logger.exception("weighted blend failed for %s", parts)
         raise HTTPException(status_code=500, detail=f"combine failed: {exc}")
 
     try:
