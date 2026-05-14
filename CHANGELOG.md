@@ -1,3 +1,10 @@
+## [0.4.1](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.4.0...v0.4.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* **save-combined:** parse weight syntax + compute weighted blend ourselves ([435338e](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/435338e816bb1efe39c9606fedde701c20732d62))
+
 # [0.4.0](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.3.2...v0.4.0) (2026-05-14)
 
 
