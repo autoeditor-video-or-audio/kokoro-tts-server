@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.4.1...v0.5.0) (2026-05-14)
+
+
+### Features
+
+* **docker,ci,docs:** add CPU flavour alongside GPU ([47c079b](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/47c079b0da60bd7604542706c03096336618dd90))
+
 ## [0.4.1](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.4.0...v0.4.1) (2026-05-14)
 
 
