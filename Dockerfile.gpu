@@ -32,11 +32,11 @@ COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
 
 RUN uv venv --python 3.10 && \
     uv sync --extra gpu --no-cache && \
-    .venv/bin/pip install --no-cache-dir "minio>=7.2"
+    uv pip install --no-cache-dir "minio>=7.2"
 
 ARG INCLUDE_JAPANESE=true
 RUN if [ "$INCLUDE_JAPANESE" = "true" ]; then \
-        .venv/bin/python -m unidic download; \
+        uv run python -m unidic download; \
     fi
 
 # Upstream sources + our addons.
