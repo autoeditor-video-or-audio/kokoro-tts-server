@@ -1,22 +1,23 @@
-# kokoro-tts-server (autoeditor fork of remsky/Kokoro-FastAPI).
-# Drop-in replacement for the upstream container on host port 8880 —
-# vibetalker's /api/tts/* proxy keeps working without an env edit.
+# kokoro-tts-server (autoeditor fork of remsky/Kokoro-FastAPI) — CPU.
+# Drop-in replacement for the upstream CPU container on host port 8880.
+# No NVIDIA runtime; runs on any x86_64 Linux host.
 #
-# Usage on the GPU host:
+# Usage on a CPU host:
 #   cp .env.example .env       # edit MinIO creds if needed
 #   docker stop kokoro-fastapi-old || true   # free port 8880 if a previous container is there
-#   docker compose --env-file .env -f docker-compose.gpu.prod.yml pull
-#   docker compose --env-file .env -f docker-compose.gpu.prod.yml up -d
+#   docker compose --env-file .env -f docker-compose.cpu.prod.yml pull
+#   docker compose --env-file .env -f docker-compose.cpu.prod.yml up -d
 #   docker logs -f kokoro-tts-server
 #
 # Endpoints (additions over upstream):
+#   POST /v1/voices/save-combined    -> persist a weighted blend as a .pt under voices_dir
 #   POST /v1/voices/sync-from-minio  -> pull voicepacks from s3://<bucket>/voicepacks/
 #   POST /v1/voices/reload           -> flush the upstream voice cache
 
 services:
   kokoro-tts-server:
     container_name: kokoro-tts-server
-    image: ghcr.io/autoeditor-video-or-audio/kokoro-tts-server:${KOKORO_IMAGE_TAG:-latest-gpu}
+    image: ghcr.io/autoeditor-video-or-audio/kokoro-tts-server:${KOKORO_IMAGE_TAG:-latest-cpu}
     ports:
       - "${KOKORO_PORT:-8880}:8880"
     environment:
@@ -28,28 +29,14 @@ services:
       - MINIO_BUCKET=${MINIO_BUCKET:-tts-training}
       - MINIO_VOICEPACK_PREFIX=${MINIO_VOICEPACK_PREFIX:-voicepacks/}
       - MINIO_SECURE=${MINIO_SECURE:-false}
-      - USE_GPU=true
-      - DEVICE=gpu
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - USE_GPU=false
+      - DEVICE=cpu
     volumes:
       # Persist saved blends + synced voicepacks across container restarts.
       # IMPORTANT: chown the host dir to uid 1001 before first start so the
       # baked-voicepack seed step in the entrypoint can write into it:
       #   sudo mkdir -p ./voices && sudo chown -R 1001:1001 ./voices
       - ./voices:/app/api/src/voices/v1_0
-      # Optional: share with tts-trainer for direct bind-mount handoff
-      # (instead of going through MinIO sync). Uncomment if the trainer
-      # writes to the same host path.
-      # - /srv/kokoro-voices:/app/api/src/voices/v1_0
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8880/health"]
