@@ -1,3 +1,10 @@
+## [0.3.2](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.3.1...v0.3.2) (2026-05-14)
+
+
+### Bug Fixes
+
+* **docker:** seed mounted voices_dir from baked voicepacks at boot ([4c0ffee](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/4c0ffeec757b1815ad7c79e6739ef070cf9d2162))
+
 ## [0.3.1](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.3.0...v0.3.1) (2026-05-14)
 
 
