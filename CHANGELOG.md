@@ -1,3 +1,24 @@
+# [0.3.0](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.2.4...v0.3.0) (2026-05-14)
+
+
+### Bug Fixes
+
+* Add reverse proxy support for web-ui ([213d8d5](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/213d8d56cb7d53dd55b4faa46c2fc03cc6aa09a0))
+* **arm-triton-dep:** allow uv to choose valid triton target for gpu build ([8c9550e](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/8c9550e91817e4a13d82734ac0437d7b6595b286))
+* cache voice tensors to prevent per-request memory leak ([b32d6b4](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/b32d6b4d89f4e87feefce5f5503a73fa0997d0ac)), closes [#453](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/issues/453)
+* clear voice cache on unload, correct temp file age check, align tests ([a82860b](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/a82860bbcc7b0296928a2d436f80a27be8d65709))
+* OGG/Opus truncation — close container before reading buffer ([3970312](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/397031218bdcac7b95331f085260841d2791df56)), closes [remsky/Kokoro-FastAPI#447](https://github.com/remsky/Kokoro-FastAPI/issues/447)
+* **tests:**  drop tautological load_model_validation ([c84adf3](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/c84adf35567a58d61843768869421adcd5370437))
+* **triton-buld-dep:** add override deps for linux arch64 ([6c1b8bf](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/6c1b8bf36c1da8ddb4aeb6fe694a4f5db2d6805a))
+* update PyTorch CUDA version from cu129 to cu126 ([d29dcf7](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/d29dcf76cfaae6fe559203b1ef7d45713dc28a21))
+* use weights_only=True for voice tensor torch.load calls ([878fd5d](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/878fd5d02857e77d7594b7f0f125ae0cf464d154)), closes [remsky/Kokoro-FastAPI#452](https://github.com/remsky/Kokoro-FastAPI/issues/452)
+
+
+### Features
+
+* add configurable logging level with environment variable support ([43a069b](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/43a069b41f746dc8d57ad1803fee3368f3c3468b))
+* nifty-star sibling-fork layer (server_addons, MinIO sync, ops parity) ([4133cb7](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/4133cb7ad53c924a0c1c0ef77aac27e4dc51393b))
+
 # Changelog
 
 Notable changes to this project will be documented in this file.
