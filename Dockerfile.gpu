@@ -44,10 +44,31 @@ COPY --chown=appuser:appuser api ./api
 COPY --chown=appuser:appuser web ./web
 COPY --chown=appuser:appuser docker/scripts/ ./
 COPY --chown=appuser:appuser server_addons ./server_addons
-RUN chmod +x ./entrypoint.sh
 
-# Replace the upstream uvicorn target with our wrapped app.
-RUN sed -i 's#api.src.main:app#server_addons.main:app#' ./entrypoint.sh
+# Stage baked voicepacks so a runtime bind mount on
+# /app/api/src/voices/v1_0 (used to persist user blends + synced
+# voicepacks) does not mask the upstream voicepacks shipped in the
+# image. The rewritten entrypoint copies any baked voicepack the
+# mount does not already provide.
+RUN cp -a /app/api/src/voices/v1_0 /app/voices-baked
+
+# Rewrite entrypoint:
+#   1. seed mounted voices_dir from /app/voices-baked (no-clobber)
+#   2. download the Kokoro model if asked (upstream behaviour)
+#   3. launch our wrapped app via uv
+RUN printf '%s\n' \
+    '#!/bin/bash' \
+    'set -e' \
+    '' \
+    'mkdir -p /app/api/src/voices/v1_0' \
+    'cp -an /app/voices-baked/. /app/api/src/voices/v1_0/' \
+    '' \
+    'if [ "$DOWNLOAD_MODEL" = "true" ]; then' \
+    '    python download_model.py --output api/src/models/v1_0' \
+    'fi' \
+    '' \
+    'exec uv run --extra "$DEVICE" --no-sync python -m uvicorn server_addons.main:app --host 0.0.0.0 --port 8880 --log-level debug' \
+    > ./entrypoint.sh && chmod +x ./entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
