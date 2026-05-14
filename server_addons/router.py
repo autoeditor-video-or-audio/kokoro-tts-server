@@ -3,16 +3,27 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
+import torch
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from .sync import sync_voicepacks
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/voices", tags=["voicepacks"])
+
+_VALID_NAME = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+
+
+class SaveCombinedRequest(BaseModel):
+    voices: List[str] = Field(..., min_length=1, description="Base voicepack names to blend")
+    name: str = Field(..., description="Filename (without .pt) to persist in voices_dir")
+    overwrite: bool = Field(False, description="Allow overwriting an existing voicepack")
 
 
 def _voices_dir() -> Path:
@@ -37,6 +48,61 @@ async def sync_from_minio() -> dict:
     # picks up any new files immediately.
     await _reload_voice_cache()
     return result
+
+
+@router.post("/save-combined")
+async def save_combined_voice(req: SaveCombinedRequest) -> dict:
+    """Blend `voices` and persist the result as `<name>.pt` in voices_dir.
+
+    Upstream `POST /v1/audio/voices/combine` returns the blended `.pt`
+    as a download but writes it only to a tempfile. This fork-only
+    endpoint keeps the same blend math but lands the tensor inside the
+    voice manager's directory so it shows up in `GET /v1/audio/voices`
+    and survives container restarts.
+    """
+    if not _VALID_NAME.match(req.name):
+        raise HTTPException(
+            status_code=400,
+            detail="name must match [A-Za-z0-9_-]{1,64}",
+        )
+    target = _voices_dir() / f"{req.name}.pt"
+    if target.exists() and not req.overwrite:
+        raise HTTPException(
+            status_code=409,
+            detail=f"voicepack {req.name!r} already exists; pass overwrite=true to replace",
+        )
+
+    try:
+        from api.src.services.tts_service import TTSService
+
+        tts_service = await TTSService.create()
+        available = set(await tts_service.list_voices())
+    except Exception as exc:
+        logger.exception("upstream tts service init failed")
+        raise HTTPException(status_code=500, detail=f"tts service init: {exc}")
+
+    missing = [v for v in req.voices if v.split("(")[0].strip() not in available]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"base voices not found: {missing}",
+        )
+
+    try:
+        combined = await tts_service.combine_voices(voices=req.voices)
+    except Exception as exc:
+        logger.exception("combine_voices failed for %s", req.voices)
+        raise HTTPException(status_code=500, detail=f"combine failed: {exc}")
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(combined, target)
+    except Exception as exc:
+        logger.exception("torch.save voicepack failed")
+        raise HTTPException(status_code=500, detail=f"persist failed: {exc}")
+
+    await _reload_voice_cache()
+    return {"name": req.name, "path": str(target), "base_voices": req.voices}
 
 
 @router.post("/reload")

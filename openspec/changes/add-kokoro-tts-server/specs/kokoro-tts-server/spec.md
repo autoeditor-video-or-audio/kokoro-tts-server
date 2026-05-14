@@ -18,12 +18,24 @@ The fork SHALL serve every OpenAI-compatible route the upstream
 - **THEN** the response MUST include every `.pt` file under
   `Settings.voices_dir` (default `/app/api/src/voices/v1_0/`)
 
-#### Scenario: Voice combine route (persistence path enabled)
+#### Scenario: Voice combine route returns blob
 - **WHEN** the client posts `POST /v1/audio/voices/combine` with a
   body of `Union[str, list[str]]`
-- **THEN** the server MUST persist the combined voicepack as a new
-  `.pt` under `voices_dir` (no HTTP 403 because the fork enables the
-  permission gate by default)
+- **THEN** the server MUST stream the combined voicepack `.pt` back
+  as a `FileResponse` (upstream contract, preserved verbatim) with
+  HTTP 200 — the fork enables the upstream permission gate by default
+  so the route no longer 403s
+
+#### Scenario: Persisted blend via fork-only save route
+- **WHEN** the client posts
+  `POST /v1/voices/save-combined` with body
+  `{"voices": [...], "name": "my_blend", "overwrite": false}`
+- **THEN** the server MUST blend the base voices via the upstream
+  `TTSService.combine_voices` path
+- **AND** persist the resulting tensor as `<voices_dir>/<name>.pt`
+- **AND** flush the voice-manager cache so a follow-up
+  `GET /v1/audio/voices` lists the new voicepack
+- **AND** return `{"name": "<name>", "path": "<absolute>", "base_voices": [...]}`
 
 ### Requirement: Allow-Local-Voice-Saving Default Enabled
 The fork SHALL flip the default of `Settings.allow_local_voice_saving`
