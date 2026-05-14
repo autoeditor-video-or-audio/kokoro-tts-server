@@ -1,0 +1,17 @@
+{{- if .Values.persistence.voices.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-voices
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.voices.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.voices.size }}
+  {{- if .Values.persistence.voices.storageClass }}
+  storageClassName: {{ .Values.persistence.voices.storageClass }}
+  {{- end }}
+{{- end }}

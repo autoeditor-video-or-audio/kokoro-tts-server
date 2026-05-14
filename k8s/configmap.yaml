@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kokoro-tts-server-config
+  labels:
+    app: kokoro-tts-server
+data:
+  ALLOW_LOCAL_VOICE_SAVING: "true"
+  KOKORO_SYNC_ON_START: "0"
+  MINIO_ENDPOINT: "minio.minio.svc.cluster.local:9000"
+  MINIO_BUCKET: "tts-training"
+  MINIO_VOICEPACK_PREFIX: "voicepacks/"
+  MINIO_SECURE: "false"
+  USE_GPU: "true"
+  DEVICE: "gpu"

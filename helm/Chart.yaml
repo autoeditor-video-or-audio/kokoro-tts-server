@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kokoro-tts-server
+description: Kokoro TTS inference server (fork of remsky/Kokoro-FastAPI) with allow_local_voice_saving on by default + MinIO voicepack sync.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

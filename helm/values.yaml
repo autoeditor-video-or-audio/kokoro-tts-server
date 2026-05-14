@@ -1,0 +1,43 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/autoeditor-video-or-audio/kokoro-tts-server
+  tag: latest-gpu
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+env:
+  ALLOW_LOCAL_VOICE_SAVING: "true"
+  KOKORO_SYNC_ON_START: "0"
+  MINIO_ENDPOINT: "minio.minio.svc.cluster.local:9000"
+  MINIO_BUCKET: "tts-training"
+  MINIO_VOICEPACK_PREFIX: "voicepacks/"
+  MINIO_SECURE: "false"
+  USE_GPU: "true"
+  DEVICE: "gpu"
+  # MINIO_ACCESS_KEY and MINIO_SECRET_KEY pulled from a k8s secret —
+  # never put them into values.yaml.
+
+persistence:
+  voices:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 5Gi
+
+resources:
+  limits:
+    cpu: "4"
+    memory: 12Gi
+    nvidia.com/gpu: 1
+  requests:
+    cpu: "1"
+    memory: 4Gi
+    nvidia.com/gpu: 1
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

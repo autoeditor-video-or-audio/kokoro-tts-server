@@ -1,0 +1,74 @@
+# Fork-layer Dockerfile for kokoro-tts-server.
+#
+# Layers our minimal additions on top of the upstream `docker/gpu/Dockerfile`
+# build steps (we inline them here so a single image is produced; this
+# also keeps the GHCR matrix simple).
+#
+# What we add over upstream:
+#   - ALLOW_LOCAL_VOICE_SAVING=true ENV default
+#   - MinIO Python SDK
+#   - server_addons/ (sync + reload routes + lifespan startup sync)
+#   - CMD switches to `server_addons.main:app`
+
+FROM --platform=$BUILDPLATFORM nvcr.io/nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
+
+# Upstream system deps.
+RUN apt-get update -y && \
+    apt-get install -y python3.10 python3-venv espeak-ng espeak-ng-data git libsndfile1 curl ffmpeg g++ cmake && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /usr/share/espeak-ng-data && \
+    ln -s /usr/lib/*/espeak-ng-data/* /usr/share/espeak-ng-data/ && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/ && \
+    mv /root/.local/bin/uvx /usr/local/bin/ && \
+    useradd -m -u 1001 appuser && \
+    mkdir -p /app/api/src/models/v1_0 && \
+    chown -R appuser:appuser /app
+
+USER appuser
+WORKDIR /app
+
+COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
+
+RUN uv venv --python 3.10 && \
+    uv sync --extra gpu --no-cache && \
+    .venv/bin/pip install --no-cache-dir "minio>=7.2"
+
+ARG INCLUDE_JAPANESE=true
+RUN if [ "$INCLUDE_JAPANESE" = "true" ]; then \
+        .venv/bin/python -m unidic download; \
+    fi
+
+# Upstream sources + our addons.
+COPY --chown=appuser:appuser api ./api
+COPY --chown=appuser:appuser web ./web
+COPY --chown=appuser:appuser docker/scripts/ ./
+COPY --chown=appuser:appuser server_addons ./server_addons
+RUN chmod +x ./entrypoint.sh
+
+# Replace the upstream uvicorn target with our wrapped app.
+RUN sed -i 's#api.src.main:app#server_addons.main:app#' ./entrypoint.sh
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/api \
+    UV_LINK_MODE=copy \
+    USE_GPU=true \
+    PHONEMIZER_ESPEAK_PATH=/usr/bin \
+    PHONEMIZER_ESPEAK_DATA=/usr/share/espeak-ng-data \
+    ESPEAK_DATA_PATH=/usr/share/espeak-ng-data \
+    DEVICE="gpu" \
+    ALLOW_LOCAL_VOICE_SAVING=true \
+    MINIO_BUCKET=tts-training \
+    MINIO_VOICEPACK_PREFIX=voicepacks/ \
+    MINIO_SECURE=false \
+    KOKORO_SYNC_ON_START=0
+
+ENV DOWNLOAD_MODEL=true
+RUN if [ "$DOWNLOAD_MODEL" = "true" ]; then \
+    python download_model.py --output api/src/models/v1_0; \
+    fi
+
+EXPOSE 8880
+
+CMD ["./entrypoint.sh"]
