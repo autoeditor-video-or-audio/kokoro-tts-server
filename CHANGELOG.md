@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.3.2...v0.4.0) (2026-05-14)
+
+
+### Features
+
+* **server_addons:** POST /v1/voices/save-combined persists blends in voices_dir ([7d30c63](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/commit/7d30c6392dae9f9e6c3ef4261d7d31129dd8a9c8))
+
 ## [0.3.2](https://github.com/autoeditor-video-or-audio/kokoro-tts-server/compare/v0.3.1...v0.3.2) (2026-05-14)
 
 
