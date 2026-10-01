@@ -40,10 +40,10 @@
 
 ## 5. Validation
 
-- [ ] 5.1 `uv run pytest` green on the merged tree
-- [ ] 5.2 `docker build` of both Dockerfiles succeeds
-- [ ] 5.3 CPU container: `/health` 200, `/v1/audio/voices` lists baked
+- [x] 5.1 `uv run pytest` green on the merged tree
+- [x] 5.2 `docker build` of both Dockerfiles succeeds
+- [x] 5.3 CPU container: `/health` 200, `/v1/audio/voices` lists baked
       voices, `save-combined` persists, weighted `/v1/audio/speech` returns
       audio
-- [ ] 5.4 GPU container: `/health` 200 and a speech request returns audio
-- [ ] 5.5 `openspec validate update-upstream-kokoro-fastapi-v0-9-0 --strict`
+- [x] 5.4 GPU container: `/health` 200 and a speech request returns audio
+- [x] 5.5 `openspec validate update-upstream-kokoro-fastapi-v0-9-0 --strict`
