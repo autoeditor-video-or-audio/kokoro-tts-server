@@ -3,9 +3,6 @@ from abc import ABC, abstractmethod
 
 import phonemizer
 
-from .normalizer import normalize_text
-from ...structures.schemas import NormalizationOptions
-
 phonemizers = {}
 
 
@@ -95,13 +92,13 @@ def phonemize(text: str, language: str = "a") -> str:
         Phonemized text
     """
     global phonemizers
-    
+
     # Strip input text first to remove problematic leading/trailing spaces
     text = text.strip()
-    
+
     if language not in phonemizers:
         phonemizers[language] = create_phonemizer(language)
-    
+
     result = phonemizers[language].phonemize(text)
     # Final strip to ensure no leading/trailing spaces in phonemes
     return result.strip()
