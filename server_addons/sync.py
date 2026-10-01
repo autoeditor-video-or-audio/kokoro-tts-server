@@ -11,9 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-from datetime import timedelta
 from pathlib import Path
-from typing import Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
