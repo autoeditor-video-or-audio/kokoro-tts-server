@@ -1,70 +1,86 @@
-# Fork-layer Dockerfile for kokoro-tts-server (CPU flavour).
-#
-# Layers our minimal additions on top of the upstream
-# `docker/cpu/Dockerfile` build steps. Inlined here so a single image
-# is produced; matches the parallel `Dockerfile.gpu` layout 1:1 so
-# rebases against upstream only touch the two files together.
-#
-# What we add over upstream:
-#   - ALLOW_LOCAL_VOICE_SAVING=true ENV default
-#   - MinIO Python SDK
-#   - server_addons/ (sync + reload + save-combined routes + lifespan sync)
-#   - CMD switches to `server_addons.main:app`
+# syntax=docker/dockerfile:1
 
-FROM python:3.10-slim
+# Fork layer over upstream docker/cpu/Dockerfile.optimized (v0.9.0).
+# Kept line-for-line with upstream except for these deltas, so the next
+# upstream sync is a diff of that file:
+#   - minio SDK installed into the venv
+#   - appuser uid 1001 (matches existing voices volumes)
+#   - server_addons/ copied; baked voicepacks staged at /app/voices-baked
+#   - entrypoint seeds voices_dir and launches server_addons.main:app
+#   - ALLOW_LOCAL_VOICE_SAVING=true and MINIO_* ENV defaults
 
-# Upstream system deps. Rust is required to build sudachipy /
-# pyopenjtalk-plus from source on slim.
+# Stage 1: Builder
+FROM python:3.12 AS builder
+
+# Install build dependencies (g++/cmake/make: pyopenjtalk ships sdist only)
 RUN apt-get update -y && \
-    apt-get install -y espeak-ng espeak-ng-data git libsndfile1 curl ffmpeg g++ cmake && \
+    apt-get install -y git curl g++ cmake make && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/ && \
+    mv /root/.local/bin/uvx /usr/local/bin/
+
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies with CPU extras
+ENV UV_HTTP_TIMEOUT=120 UV_HTTP_RETRIES=3 UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv --python 3.12 && \
+    uv sync --frozen --extra cpu --no-install-project && \
+    uv pip install "minio>=7.2"
+
+# Stage 2: Runtime - slim image
+FROM python:3.12-slim
+
+# Install runtime dependencies
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends espeak-ng espeak-ng-data libsndfile1 curl && \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
     mkdir -p /usr/share/espeak-ng-data && \
     ln -s /usr/lib/*/espeak-ng-data/* /usr/share/espeak-ng-data/ && \
-    curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    mv /root/.local/bin/uv /usr/local/bin/ && \
-    mv /root/.local/bin/uvx /usr/local/bin/ && \
     useradd -m -u 1001 appuser && \
     mkdir -p /app/api/src/models/v1_0 && \
     chown -R appuser:appuser /app
 
-USER appuser
 WORKDIR /app
 
-# Install Rust for the non-root user so builds (e.g., sudachipy) succeed.
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+# Copy virtual environment from builder
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
 
-# Ensure Cargo and the Python venv are on PATH; extend HTTP timeouts for uv.
-ENV PATH="/home/appuser/.cargo/bin:/app/.venv/bin:$PATH" \
-    UV_HTTP_TIMEOUT=120 \
-    UV_HTTP_RETRIES=3
-
-COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
-
-RUN uv venv --python 3.10 && \
-    uv sync --extra cpu --no-cache && \
-    uv pip install --no-cache-dir "minio>=7.2"
-
-ARG INCLUDE_JAPANESE=true
-RUN if [ "$INCLUDE_JAPANESE" = "true" ]; then \
-        uv run python -m unidic download; \
+# Download model in runtime stage so download_model.py is present for runtime re-downloads via entrypoint
+COPY --chown=appuser:appuser docker/scripts/download_model.py ./download_model.py
+# local model bakes here so the download no-ops; clean checkouts carry only config.json (cache-stable)
+COPY --chown=appuser:appuser api/src/models ./api/src/models
+ARG DOWNLOAD_MODEL=true
+RUN if [ "$DOWNLOAD_MODEL" = "true" ]; then \
+    /app/.venv/bin/python download_model.py --output api/src/models/v1_0 && \
+    chown -R appuser:appuser /app/api/src/models; \
     fi
 
-# Upstream sources + our addons.
-COPY --chown=appuser:appuser api ./api
+# Japanese support requires the UniDic dictionary (~526MB on disk) for fugashi/MeCab.
+# Enabled by default; set --build-arg INCLUDE_JAPANESE=false to skip and shave the image.
+# Keep true. Setting false silently breaks ja generation.
+ARG INCLUDE_JAPANESE=true
+RUN if [ "$INCLUDE_JAPANESE" = "true" ]; then \
+    /app/.venv/bin/python -m unidic download && \
+    chown -R appuser:appuser /app/.venv/lib/python*/site-packages/unidic; \
+    fi
+
+# Copy project files
+# model already baked above
+COPY --exclude=src/models --chown=appuser:appuser api ./api
 COPY --chown=appuser:appuser web ./web
-COPY --chown=appuser:appuser docker/scripts/ ./
+COPY --chown=appuser:appuser VERSION ./VERSION
 COPY --chown=appuser:appuser server_addons ./server_addons
 
-# Stage baked voicepacks so a runtime bind mount on
-# /app/api/src/voices/v1_0 does not mask the upstream voicepacks
-# shipped in the image. The rewritten entrypoint copies any baked
-# voicepack the mount does not already provide.
+# Stage baked voicepacks so a runtime mount on /app/api/src/voices/v1_0
+# (persisted blends + synced voicepacks) does not mask them; the
+# entrypoint seeds the mount from here without clobbering.
 RUN cp -a /app/api/src/voices/v1_0 /app/voices-baked
 
-# Rewrite entrypoint:
-#   1. seed mounted voices_dir from /app/voices-baked (no-clobber)
-#   2. download the Kokoro model if asked (upstream behaviour)
-#   3. launch our wrapped app via uv
 RUN printf '%s\n' \
     '#!/bin/bash' \
     'set -e' \
@@ -72,16 +88,19 @@ RUN printf '%s\n' \
     'mkdir -p /app/api/src/voices/v1_0' \
     'cp -an /app/voices-baked/. /app/api/src/voices/v1_0/' \
     '' \
-    'if [ "$DOWNLOAD_MODEL" = "true" ]; then' \
+    'if [ "${DOWNLOAD_MODEL:-true}" = "true" ]; then' \
     '    python download_model.py --output api/src/models/v1_0' \
     'fi' \
     '' \
-    'exec uv run --extra "$DEVICE" --no-sync python -m uvicorn server_addons.main:app --host 0.0.0.0 --port 8880 --log-level debug' \
+    'exec python -m uvicorn server_addons.main:app --host "${HOST:-0.0.0.0}" --port "${PORT:-8880}" --log-level debug' \
     > ./entrypoint.sh && chmod +x ./entrypoint.sh
 
+USER appuser
+
+# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app:/app/api \
-    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH" \
     USE_GPU=false \
     PHONEMIZER_ESPEAK_PATH=/usr/bin \
     PHONEMIZER_ESPEAK_DATA=/usr/share/espeak-ng-data \
@@ -93,11 +112,7 @@ ENV PYTHONUNBUFFERED=1 \
     MINIO_SECURE=false \
     KOKORO_SYNC_ON_START=0
 
-ENV DOWNLOAD_MODEL=true
-RUN if [ "$DOWNLOAD_MODEL" = "true" ]; then \
-    python download_model.py --output api/src/models/v1_0; \
-    fi
-
 EXPOSE 8880
 
+# Run FastAPI server
 CMD ["./entrypoint.sh"]
