@@ -1,7 +1,8 @@
 # kokoro-tts-server (fork)
 
-Drop-in replacement for `remsky/Kokoro-FastAPI` with three operational
-deltas that the nifty-star sequencer needs:
+Drop-in replacement for `remsky/Kokoro-FastAPI` (based on upstream
+`v0.9.0`) with three operational deltas that the nifty-star sequencer
+needs:
 
 1. **`ALLOW_LOCAL_VOICE_SAVING=true` is the new default**, so
    `POST /v1/audio/voices/combine` actually returns 200 + the blended

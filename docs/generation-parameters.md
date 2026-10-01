@@ -63,3 +63,16 @@ without a sync.
 | `ALLOW_LOCAL_VOICE_SAVING` | `true` (fork default) | Gate for `/v1/audio/voices/combine` + `/v1/voices/save-combined`. |
 | `KOKORO_SYNC_ON_START` | `0` | If `1`/`true`/`yes`, lifespan hook runs MinIO sync once at boot. |
 | `MINIO_ENDPOINT`, `MINIO_BUCKET`, `MINIO_VOICEPACK_PREFIX`, `MINIO_SECURE`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | see `.env.example` | MinIO connection config used by sync + lifespan hook. |
+
+Upstream `v0.9.0` settings that change what a fork operator sees. All
+default to the upstream value; the fork does not override them.
+
+| ENV var | Default | Effect |
+|---|---|---|
+| `ENABLE_DEBUG_ENDPOINTS` | `false` | `/debug/*` introspection routes are off unless enabled (upstream v0.6.0). |
+| `ALLOW_DEV_UNLOAD` | `false` | Exposes `/dev/model`, `POST /dev/unload`, `POST /dev/reload`. |
+| `MODEL_AUTO_UNLOAD_TIMEOUT_SECONDS` | `0` | Idle seconds before the model leaves VRAM; `0` disables. |
+| `ENABLE_INNO_TUNER` | `false` | Exposes `POST /dev/tune` (voice-clone tuner). |
+| `ENABLE_SSML` / `ENABLE_VOICE_TAGS` | `true` | Kill switches for SSML and inline `[voice:...]` multi-speaker parsing. |
+| `MAX_INPUT_LENGTH` | `1000000` | Characters per speech request. |
+| `MAX_PAUSE_DURATION_S` / `MAX_TOTAL_PAUSE_S` | `60` / `300` | Caps on requested silence per pause and per request. |
